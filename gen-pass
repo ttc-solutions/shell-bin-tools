@@ -1,0 +1,139 @@
+#!/bin/bash
+
+
+# defaults
+default_length=10
+default_classes=4
+
+# help
+help=$(cat <<SETHELP
+ gen-pass - Generate Passwords
+
+   first param should be length        -  Default: $default_length
+
+   second should be number of classes  -  Default: $default_classes
+     1 class: a-z
+     2 class: A-Z
+     3 class: 0-9
+     4 class: Punctuation
+SETHELP
+)
+
+# start
+echo ""
+
+# show help with -h or --help
+if [ "$1" == "-h" -o "$1" = "--help" ]; then
+  echo "$help"
+  exit 1
+fi
+
+# regex for numbers
+re='^[0-9]+$'
+
+# param 1, Length
+length=$1
+if [ "$length" = "" ]; then
+  length=$default_length
+else
+  if ! [[ $length =~ $re ]]; then
+    echo -e "### Invalid Param 1. Length, must be a number.\n\n$help\n"
+    exit 1
+  elif [ $length -lt 1 ]; then
+    echo -e "### Invalid Param 1. Length, must be a number greater than 0.\n\n$help\n"
+    exit 1
+  fi
+fi
+
+# param 2, Classes
+classes=$2
+re='^[0-9]+$'
+if [ "$classes" = "" ]; then
+  classes=$default_classes
+else
+  if ! [[ $classes =~ $re ]]; then
+    echo -e "### Invalid Param 2. Classes, must be a number.\n\n$help\n"
+    exit 1
+  elif [ $classes -lt 1 -o $classes -gt 4 ]; then
+    echo -e "### Invalid Param 2. Classes, must be a number between 1 and 4.\n\n$help\n"
+    exit 1
+  fi
+fi
+
+# validate
+if [ $classes -gt $length ]; then
+  echo -e "### Invalid params. Cannot have more classes than character length.\n\n$help\n"
+  exit 1
+fi
+
+# define classes
+cl1="a-z" # lowercase a-z
+cl2="A-Z" # uppercase A-Z
+cl3="0-9" # numbers
+# cl4: symbols
+#   these chars are escaped in following cl4 sequence:
+#    \`   backtick
+#    \-   dash
+#    \*   star
+#    \\\  backslash
+#   but we take out \` and ~ to make it easy for non-full keyboards. If we don't take
+#   anything out, we can use instead the 32 punctuations symbols with just [:punct:]
+cl4=$(cat <<SETCL
+^<=>|_\-,;:!?/.'"()[]{}@$\*\\\&#%+
+SETCL
+)
+
+# make up pattern
+pattern=""
+
+if [ $classes -gt 0 ]; then
+  pattern="$cl1"
+fi
+if [ $classes -gt 1 ]; then
+  pattern="${pattern}${cl2}"
+fi
+if [ $classes -gt 2 ]; then
+  pattern="${pattern}${cl3}"
+fi
+if [ $classes -gt 3 ]; then
+  pattern="${pattern}${cl4}"
+fi
+
+# here we loop until we generate a password with at least 1 character of each classes
+checked=0
+while [ $checked -ne $classes ]; do
+  # reset checked
+  checked=0
+  generated=$(cat /dev/urandom | tr -dc "$pattern" | head -c${length:-12};echo)
+
+  if [ $classes -gt 0 ]; then
+    tmp=$(echo $generated | tr -dc "$cl1")
+    if [ "$tmp" != "" ]; then
+      let checked+=1
+    fi
+  fi
+
+  if [ $classes -gt 1 ]; then
+    tmp=$(echo $generated | tr -dc "$cl2")
+    if [ "$tmp" != "" ]; then
+      let checked+=1
+    fi
+  fi
+
+  if [ $classes -gt 2 ]; then
+    tmp=$(echo $generated | tr -dc "$cl3")
+    if [ "$tmp" != "" ]; then
+      let checked+=1
+    fi
+  fi
+
+  if [ $classes -gt 3 ]; then
+    tmp=$(echo $generated | tr -dc "$cl4")
+    if [ "$tmp" != "" ]; then
+      let checked+=1
+    fi
+  fi
+done
+
+# output generated password
+echo -e "$generated\n"
